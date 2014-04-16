@@ -1,0 +1,36 @@
+[user]
+	name = Paul Grave
+	email = paul.grave@bskyb.com
+[alias]
+	co = checkout
+	ci = commit -v
+	st = status
+	up = pull --rebase
+	d = diff --color -w
+	chp = cherry-pick
+	svnr = svn rebase
+	svnd = svn dcommit
+	svnf = svn fetch
+	svnt = svn tag
+	svnb = svn branch
+    lg   = log --graph --pretty=format:'%Cred%h%Creset %C(cyan)%an%Creset \t%C(blue)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative
+[core]
+	autocrlf = input
+	excludesfile = /Users/paul/.gitignore
+	whitespace=nowarn
+	quotepath = false
+[color]
+	ui = auto
+[difftool "Kaleidoscope"]
+	cmd = ksdiff --partial-changeset --relative-path \"$MERGED\" -- \"$LOCAL\" \"$REMOTE\"
+[diff]
+	tool = Kaleidoscope
+[difftool]
+	prompt = false
+[mergetool "Kaleidoscope"]
+	cmd = ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
+	trustExitCode = true
+[mergetool]
+	prompt = false
+[merge]
+	tool = Kaleidoscope
