@@ -1,92 +1,116 @@
+export LC_ALL=en_GB.UTF-8
 autoload -U compinit promptinit
+autoload -U edit-command-line
+zle -N edit-command-line
+
 compinit
 promptinit
 
-zstyle ':completion:*:default' menu select
 export HISTFILE=~/.zsh_history
 export HISTSIZE=50000
 export SAVEHIST=50000
 
-# Customize to your needs...
 bindkey -v
 bindkey -M vicmd j vi-down-line-or-history
 bindkey -M vicmd k vi-up-line-or-history
+bindkey -M vicmd v edit-command-line
+bindkey "^R" history-incremental-search-backward
+bindkey -M viins '^R' history-incremental-search-backward
+bindkey -M vicmd '^R' history-incremental-search-backward
+
 alias ll='ls -l'
 alias la='ls -a'
-alias -s txt=vim
-alias -s html=vim
-export PATH=/usr/local/bin:$PATH:/usr/local/git/bin:/usr/local/git/man:$HOME/bin
-export MANPATH=$MANPATH:/usr/local/git/man
-export EDITOR="vim"
-unsetopt correct_all
-setopt auto_cd
-export PROMPT="%c %# " 
 
-export LC_ALL=C
-alias whoami=/usr/ucb/whoami
-autoload -U compinit promptinit
-compinit
-promptinit
-
-export HISTFILE=~/.zsh_history
-export HISTSIZE=50000
-export SAVEHIST=50000
+zstyle ':completion:*:default' menu select
+export PROMPT="%c %# "
+pman() {man -t "$@" | open -f -a Preview;}
 
 case "$TERM" in
   xterm*|rxvt*)
-        function settitle { print -Pn "\e]2;%n@%m: %~\a" }
-        function settab { print -Pn "\e]1;%n@%m: %~\a" }
+	function settitle { print -Pn "\e]2;%m: %2~\a" }
+	function settab { print -Pn "\e]1;%m: %2~\a" }
         function chpwd { settab;settitle }
         function preexec { settab;settitle }
         function precmd { settab;settitle }
-        settab;settitle
+	settab;settitle
     ;;
 esac
-
-update_terminal_cwd() {
-    # Identify the directory using a "file:" scheme URL,
-    # including the host name to disambiguate local vs.
-    # remote connections. Percent-escape spaces.
-    local SEARCH=' '
-    local REPLACE='%20'
-    local PWD_URL="file://$HOSTNAME${PWD//$SEARCH/$REPLACE}"
-    printf '\e]7;%s\a' "$PWD_URL"
-}
-autoload add-zsh-hook
-add-zsh-hook chpwd update_terminal_cwd
-update_terminal_cwd
-
+ 
 setopt append_history
 setopt share_history
+setopt auto_cd
+unsetopt correct_all
 
-#typeset -ga preexec_functions
-#typeset -ga precmd_functions
-#typeset -ga chpwd_functions
+typeset -ga preexec_functions
+typeset -ga precmd_functions
+typeset -ga chpwd_functions
+setopt prompt_subst
 
-#setopt prompt_subst
-#export __CURRENT_GIT_BRANCH=
+# Adapted from code found at <https://gist.github.com/1712320>.
 
+setopt prompt_subst
+autoload -U colors && colors # Enable colors in prompt
+
+# Modify the colors and symbols in these variables as desired.
+GIT_PROMPT_SYMBOL="%{$fg[blue]%}±"
+GIT_PROMPT_PREFIX="%{$fg[green]%}[%{$reset_color%}"
+GIT_PROMPT_SUFFIX="%{$fg[green]%}]%{$reset_color%}"
+GIT_PROMPT_AHEAD="%{$fg[red]%}ANUM%{$reset_color%}"
+GIT_PROMPT_BEHIND="%{$fg[cyan]%}BNUM%{$reset_color%}"
+GIT_PROMPT_MERGING="%{$fg_bold[magenta]%}⚡︎%{$reset_color%}"
+GIT_PROMPT_UNTRACKED="%{$fg_bold[red]%}●%{$reset_color%}"
+GIT_PROMPT_MODIFIED="%{$fg_bold[yellow]%}●%{$reset_color%}"
+GIT_PROMPT_STAGED="%{$fg_bold[green]%}●%{$reset_color%}"
+
+# Show Git branch/tag, or name-rev if on detached head
 parse_git_branch() {
-	git-branch --no-color 2> /dev/null | grep '*' | cut -d ' ' -f2
+  (git symbolic-ref -q HEAD || git name-rev --name-only --no-undefined --always HEAD) 2> /dev/null
 }
 
-preexec_functions+='zsh_preexec_update_git_vars'
-zsh_preexec_update_git_vars() {
-    case "$(history $HISTCMD)" in 
-	    *git*)
-	    export __CURRENT_GIT_BRANCH="$(parse_git_branch)"
-	    ;;
-    esac
+# Show different symbols as appropriate for various Git repository states
+parse_git_state() {
+
+  # Compose this value via multiple conditional appends.
+  local GIT_STATE=""
+
+  local NUM_AHEAD="$(git log --oneline @{u}.. 2> /dev/null | wc -l | tr -d ' ')"
+  if [ "$NUM_AHEAD" -gt 0 ]; then
+    GIT_STATE=$GIT_STATE${GIT_PROMPT_AHEAD//NUM/$NUM_AHEAD}
+  fi
+
+  local NUM_BEHIND="$(git log --oneline ..@{u} 2> /dev/null | wc -l | tr -d ' ')"
+  if [ "$NUM_BEHIND" -gt 0 ]; then
+    GIT_STATE=$GIT_STATE${GIT_PROMPT_BEHIND//NUM/$NUM_BEHIND}
+  fi
+
+  local GIT_DIR="$(git rev-parse --git-dir 2> /dev/null)"
+  if [ -n $GIT_DIR ] && test -r $GIT_DIR/MERGE_HEAD; then
+    GIT_STATE=$GIT_STATE$GIT_PROMPT_MERGING
+  fi
+
+  if [[ -n $(git ls-files --other --exclude-standard 2> /dev/null) ]]; then
+    GIT_STATE=$GIT_STATE$GIT_PROMPT_UNTRACKED
+  fi
+
+  if ! git diff --quiet 2> /dev/null; then
+    GIT_STATE=$GIT_STATE$GIT_PROMPT_MODIFIED
+  fi
+
+  if ! git diff --cached --quiet 2> /dev/null; then
+    GIT_STATE=$GIT_STATE$GIT_PROMPT_STAGED
+  fi
+
+  if [[ -n $GIT_STATE ]]; then
+    echo "$GIT_PROMPT_PREFIX$GIT_STATE$GIT_PROMPT_SUFFIX"
+  fi
+
 }
 
-chpwd_functions+='zsh_chpwd_update_git_vars'
-zsh_chpwd_update_git_vars() {
-    export __CURRENT_GIT_BRANCH="$(parse_git_branch)"
+# If inside a Git repository, print its branch and state
+git_prompt_string() {
+  local git_where="$(parse_git_branch)"
+  [ -n "$git_where" ] && echo "$GIT_PROMPT_SYMBOL$(parse_git_state)$GIT_PROMPT_PREFIX%{$fg[yellow]%}${git_where#(refs/heads/|tags/)}$GIT_PROMPT_SUFFIX"
 }
 
-get_git_prompt_info() {
-   echo "`date +"%R"`  %{\e[31m%}$__CURRENT_GIT_BRANCH%{\e[0m%}"
-}
-pman() {man -t "$@" | open -f -a Preview;}
-
-#RPROMPT='$(get_git_prompt_info)';
+# Set the right-hand prompt
+RPS1='$(git_prompt_string)'
