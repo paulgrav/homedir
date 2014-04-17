@@ -24,6 +24,7 @@ alias la='ls -a'
 zstyle ':completion:*:default' menu select
 export PROMPT="%c %# "
 pman() {man -t "$@" | open -f -a Preview;}
+export PATH=$PATH:$HOME/.bin/
 
 case "$TERM" in
   xterm*|rxvt*)
